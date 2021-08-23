@@ -1,0 +1,4 @@
+<resources>
+    <usb-device vendor-id="9025" />
+    <!-- Vendor ID для Arduino -->
+</resources>
