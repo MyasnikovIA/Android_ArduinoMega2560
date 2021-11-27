@@ -14,47 +14,88 @@ import com.felhr.usbserial.UsbSerialInterface;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
-/*
-http://independence-sys.net/main/?p=5421
-https://github.com/mik3y/usb-serial-for-android
---------------------------------------------------------------------------------------------------
-Manifest
-    <application
-               <activity
-                ***
-                ***
-                ***
-                    <!--  USB Serial (Arduino) -->
-                    <intent-filter>
-                        <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
-                    </intent-filter>
-                    <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter" />
-                    <!--  ===================== -->
-                ***
-              </activity>
-    </application>
-    <!--  USB Serial (Arduino) -->
-    <uses-feature android:name="android.hardware.usb.host" />
---------------------------------------------------------------------------------------------------
-app\src\main\res\xml\device_filter.xml
-    <resources>
-        <usb-device vendor-id="9025" />
-        <!-- Vendor ID для Arduino -->
-    </resources>
---------------------------------------------------------------------------------------------------
-   \app \ ****
-   \libs \ usbserial.jar  -
- 1) Создать папку
- 2) скопировать библиотеку
- 3) нажать ПКМ по usbserial.jar и установить как библиотеку ("Add As Library")
---------------------------------------------------------------------------------------------------
-*/
 
 /**
- *  Класс для обмена данными между ArduinoMega2560  и Android TV box
- *  тестировалось на H96max H96mini
- *  Работает с платами:  ESP8266, ArduinoMega2560, Arduino nano
+ *
+ *  * -------------------------------------------------------------------------
+ *  *  Класс для обмена данными между ArduinoMega2560  и Android TV box
+ *  *  тестировалось на H96max H96mini
+ *  *  Работает с платами:  ESP8266, ArduinoMega2560, Arduino nano
+ *  * -------------------------------------------------------------------------
+ *
+ *
+ * http://independence-sys.net/main/?p=5421
+ * https://github.com/mik3y/usb-serial-for-android
+ * --------------------------------------------------------------------------------------------------
+ * Manifest
+ *     <application
+ *                <activity
+ *                 ***
+ *                 ***
+ *                 ***
+ *                     <!--  USB Serial (Arduino) -->
+ *                     <intent-filter>
+ *                         <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+ *                     </intent-filter>
+ *                     <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter" />
+ *                     <!--  ===================== -->
+ *                 ***
+ *               </activity>
+ *     </application>
+ *     <!--  USB Serial (Arduino) -->
+ *     <uses-feature android:name="android.hardware.usb.host" />
+ * --------------------------------------------------------------------------------------------------
+ * app\src\main\res\xml\device_filter.xml
+ *     <resources>
+ *         <usb-device vendor-id="9025" />
+ *         <!-- Vendor ID для Arduino -->
+ *     </resources>
+ * --------------------------------------------------------------------------------------------------
+ *    \app \ ****
+ *    \libs \ usbserial.jar  -
+ *  1) Создать папку
+ *  2) скопировать библиотеку
+ *  3) нажать ПКМ по usbserial.jar и установить как библиотеку ("Add As Library")
+ * --------------------------------------------------------------------------------------------------
+ * --------------------------------------------------------------------------------------------------
+ * --------------------------------------------------------------------------------------------------
+ *  // Вариан применения 1
+ *         ArduinoMega2560 meg;
+ *         meg = new ArduinoMega2560(this) {
+ *             @Override
+ *             public void onUpdateData(byte[] arg0) {
+ *                 try {
+ *                     Log.e(TAG, new String(arg0, "UTF-8"));
+ *                     tvSet(textView, new String(arg0, "UTF-8"));
+ *                 } catch (UnsupportedEncodingException e) {
+ *                     e.printStackTrace();
+ *                 }
+ *             }
+ *
+ *             @Override
+ *             public void onUpdateString(String data) {
+ *                 Log.e(TAG, data);
+ *             }
+ *
+ *         };
+ * --------------------------------------------------------------------------------------------------
+ *  // Вариан применения 1
+ *         ArduinoMega2560 meg;
+ *         meg = new ArduinoMega2560(this);
+ *         meg.UpdateData((String msg)->{
+ *              // Обработка текстового сообщение полученное из устройства
+ *              // Разбивает сообщения на строки после символа '\n'
+ *              Log.e(TAG, new String(arg0, "UTF-8"));
+ *         });
+ *         meg.UpdateData((byte[] arr)->{
+ *             // Обработка ,битового сообщения полученное из устройства
+ *             Log.e(TAG, data);
+ *         });
+ * --------------------------------------------------------------------------------------------------
+ *
+ *
  */
+
 public class ArduinoMega2560 {
     private final String ACTION_USB_PERMISSION = "com.hariharan.arduinousb.USB_PERMISSION";
     private UsbManager usbManager;
@@ -64,6 +105,24 @@ public class ArduinoMega2560 {
     Context context;
     private int deviceId = -1;
     private int speed = 115200;
+    private CallbackMethodUpdateData callbackMethodUpdateData = null;
+    private CallbackMethodUpdateSting callbackMethodUpdateSting = null;
+
+    /**
+     * Интерфейс для передачи функции в качестве аргумента
+     * Обработка битового потока
+     */
+    public interface CallbackMethodUpdateData {
+        public void call(byte[] data) throws UnsupportedEncodingException;
+    }
+
+    /**
+     * Интерфейс для передачи функции в качестве аргумента
+     * Обработка строк сообщения от устройства
+     */
+    public interface CallbackMethodUpdateSting {
+        public void call(String msg);
+    }
 
     public ArduinoMega2560(Context context, int deviceId) {
         this.context = context;
@@ -79,8 +138,14 @@ public class ArduinoMega2560 {
 
     public void onUpdateData(byte[] data) {
     }
+    public void UpdateData(CallbackMethodUpdateData callbackMethod) {
+        callbackMethodUpdateData = callbackMethod;
+    }
 
     public void onUpdateString(String data) {
+    }
+    public void UpdateData(CallbackMethodUpdateSting callbackMethod) {
+        callbackMethodUpdateSting = callbackMethod;
     }
 
     UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback() {
@@ -90,11 +155,21 @@ public class ArduinoMega2560 {
         @Override
         public void onReceivedData(byte[] arg0) {
             onUpdateData(arg0);
+            if ( callbackMethodUpdateData!=null ) {
+                try {
+                    callbackMethodUpdateData.call(arg0);
+                } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                }
+            }
             String data = null;
             try {
                 data = new String(arg0, "UTF-8");
                 if (data.indexOf("\n") != -1) {
                     onUpdateString(sb.toString());
+                    if ( callbackMethodUpdateSting!=null ){
+                        callbackMethodUpdateSting.call(sb.toString());
+                    }
                     sb.setLength(0);
                     return;
                 }

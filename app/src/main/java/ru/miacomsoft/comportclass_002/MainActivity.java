@@ -24,6 +24,8 @@ public class MainActivity extends AppCompatActivity {
         textView = (TextView) findViewById(R.id.textView);
         editText = (EditText) findViewById(R.id.editTextTextPersonName);
         editTextNum = (EditText) findViewById(R.id.editTextNumberSigned);
+        /*
+        // Вариан применения 1
         meg = new ArduinoMega2560(this) {
             @Override
             public void onUpdateData(byte[] arg0) {
@@ -41,6 +43,19 @@ public class MainActivity extends AppCompatActivity {
             }
 
         };
+        */
+
+        meg = new ArduinoMega2560(this);
+        meg.UpdateData((byte[] arr)->{
+            // Обработка ,битового сообщения полученное из устройства
+            tvSet(textView, new String(arr, "UTF-8"));
+        });
+        meg.UpdateData((String msg)->{
+             // Обработка текстового сообщение полученное из устройства
+             // срабатывает после символа '\n'
+            Log.e(TAG, msg);
+        });
+
     }
 
     public void onClick(View v) {
